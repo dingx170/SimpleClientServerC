@@ -6,11 +6,15 @@
  * @version 1.0
  * @see CPSC 5510 Spring 2020, Seattle University
  */
+
 #include <stdio.h>
+#include <stdlib.h>
+#include <iostream>
 #include <sys/types.h> 
 #include <sys/socket.h>
 #include <netinet/in.h>
 
+using namespace std;
 
 /**
  * Receive messages from clients and convert the messages to reply
@@ -24,7 +28,7 @@ int main(int argc, char *argv[]) {
 		return EXIT_FAILURE;
 	}
 
-
-
+	// htonl(INADDR_ANY)
+	// error checking on the listen() call
     return EXIT_SUCCESS;
 }
