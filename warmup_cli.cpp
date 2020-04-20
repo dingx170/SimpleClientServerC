@@ -15,6 +15,10 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netdb.h>
+#include <unistd.h> //
+#include <arpa/inet.h>
+#include <strings.h> // bzero
+#include <cstring>
 
 using namespace std;
 
@@ -56,40 +60,78 @@ int convertPort(const string& str) {
  */ 
 int main(int argc, char *argv[]) {
 
-	int port;
-	
-	if (argc != 3) {
-		cerr << "Usage: ./warmup_cli HOSTNAME PORT" << endl;
-		return EXIT_FAILURE;
-	}
+	int sock, port, n, cliPort;
+    struct sockaddr_in serv_addr;
+	struct sockaddr_in clitAddr;
+    struct hostent *server;
 
-	string hosthame = argv[1];
+    char buffer[256];
+
+	// check user input hostname & port number
+    if (argc != 4)
+		error("Usage: ./warmup_cli CLIENTPORT HOSTNAME PORT");
 
 	// get the port number with validation
-	port = convertPort(argv[2]); 
-	if (port == -1)
-		return EXIT_FAILURE;
+	port = convertPort(argv[3]);
 
-	cout << port << endl;
+	cliPort = convertPort(argv[1]);
 
-	cout << "\nWelcome! Enter a message to send or \"quit\" to exit.\n" << endl;
+	// create a socket
+    sock = socket(AF_INET, SOCK_STREAM, 0);
+	if (sock < 0) 
+        error("ERROR: fail to open socket");
+
+
+	// setup addr for client to bind to a desired port
+	clitAddr.sin_family = AF_INET;  
+	clitAddr.sin_addr.s_addr = htonl(INADDR_ANY);  // current IP address
+	clitAddr.sin_port = htons(cliPort);
+	if (bind(sock, (struct sockaddr *) &clitAddr, sizeof(clitAddr)) < 0) 
+			error("ERROR on binding");
+
+
+	// FIX-ME
+    server = gethostbyname(argv[2]);
+	if (server == NULL) 
+		error("ERROR: host not found");
+	
+	// setup addr for server
+    bzero((char *) &serv_addr, sizeof(serv_addr));
+	serv_addr.sin_family = AF_INET;
+    bcopy((char *)server->h_addr, (char *)&serv_addr.sin_addr.s_addr, server->h_length);
+    serv_addr.sin_port = htons(port);
+
+
+	if (connect(sock, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0) 
+		error("ERROR connecting");	
+
+	printf("\nWelcome! Enter a message to send or \"quit\" to exit.\n");
 	
 	// user-input loop
 	while (true) {
-		cout << "Send: ";
-		string msg;
-		getline(cin, msg);
 
-		// exit
-		if (msg == "quit")
-			break;
-		if (msg.length() == 0)
-			continue;
-		
-		cout << msg << endl;
+		printf("Send: ");
+
+		bzero(buffer,256);
+		fgets(buffer,255,stdin);
+
+		// printf("Input: %s", buffer);
+
+		n = write(sock, buffer, strlen(buffer));
+		if (n < 0) 
+			error("ERROR writing to socket");
+
+
+		bzero(buffer,256);
+		n = read(sock, buffer, 255);
+		if (n < 0) 
+			error("ERROR reading from socket");
+			
+		printf("%s\n", buffer);
 		// send() and recv() 
 	}
-	// close()
+
+    close(sock);
  
     return EXIT_SUCCESS;
 }
