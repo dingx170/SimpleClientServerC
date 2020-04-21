@@ -1,27 +1,30 @@
 /**
  * A simple client in IPv4 internet domain using TCP to 
  * send messages to a server and receive the responses. 
- * The port number is passed as an argument
+ * The hostname and port numbers are passed as arguments.
  * @author Tong (Debby) Ding
  * @version 1.0
  * @see CPSC 5510 Spring 2020, Seattle University
  */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <iostream>
-#include <limits.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <netdb.h>
-#include <unistd.h> //
-#include <arpa/inet.h>
-#include <strings.h> // bzero
-#include <cstring> // strlen
+// #include <stdio.h>
+// #include <stdlib.h>
+// #include <arpa/inet.h>
+// #include <strings.h>
+// #include <limits.h>
+// #include <sys/types.h>
+// #include <sys/socket.h>
+// #include <netinet/in.h>
 
-#define BUF_SIZE 256
+#include <iostream>
+#include <unistd.h> // close()
+#include <netdb.h>
+#include <cstring> // strlen(), bcopy(), ...
+
+#define BUF_SIZE 131072
 #define EXIT_WORD "quit"
+#define PORT_MAX 12000
+#define PORT_MIN 11000
 
 using namespace std;
 
@@ -33,25 +36,32 @@ void error(const char *msg) {
     perror(msg);
     exit(1);
 }
+/**
+ * Print a note message and exit the program
+ * @param msg customized note message
+ */ 
+void note(const char *msg) {
+    printf("Note: %s\n", msg);
+    exit(1);
+}
 
 /**
- * Convert user input port number from string to int
- * Call error() if an error exists 
+ * Convert user input port number from string to int,
+ * or print the error and exit if validation fails
  * @param str the string of port number to convert
  * @return the int of port number
  */
 int convertPort(const string& str) {
 	char *end;
-	errno = 0;	
-	// note: use strtol(), as atoi() doesn't detect errors in the input
     long val = strtol(str.c_str(), &end, 10);
 
 	// no digits or incomplete conversion
-    if (end == str || *end != '\0') 
-		error("Error: port number must all be digits");
+    if (end == str || *end != '\0')
+		note("port number must all be digits");
+
 	// number out of range
-	if (val < 11000 || val > 12000)
-		error("Error: port number out of range");
+	if (val < PORT_MIN || val > PORT_MAX)
+		note("port number out of range");
 
 	return (int) val;
 }
@@ -63,21 +73,18 @@ int convertPort(const string& str) {
  */ 
 int main(int argc, char *argv[]) {
 
-	int sock, port, err, cliPort;
+	int sock, port, err;
     struct sockaddr_in serv_addr;
-	struct sockaddr_in clitAddr;
     struct hostent *server;
 
     char buffer[BUF_SIZE];
 
 	// check user input hostname & port number
-    if (argc != 4)
-		error("Usage: ./warmup_cli CLIENTPORT HOSTNAME PORT");
+    if (argc != 3)
+		note("Usage example \"./warmup_cli HOSTNAME HOSTPORT\"");
 
 	// get the port number with validation
-	port = convertPort(argv[3]);
-
-	cliPort = convertPort(argv[1]);
+	port = convertPort(argv[2]);
 
 	// create a socket
     sock = socket(AF_INET, SOCK_STREAM, 0);
@@ -85,16 +92,9 @@ int main(int argc, char *argv[]) {
         error("ERROR: fail to open socket");
 
 
-	// setup addr for client to bind to a desired port
-	clitAddr.sin_family = AF_INET;  
-	clitAddr.sin_addr.s_addr = htonl(INADDR_ANY);  // current IP address
-	clitAddr.sin_port = htons(cliPort);
-	if (bind(sock, (struct sockaddr *) &clitAddr, sizeof(clitAddr)) < 0) 
-			error("ERROR on binding");
-
 
 	// FIX-ME
-    server = gethostbyname(argv[2]);
+    server = gethostbyname(argv[1]);
 	if (server == NULL) 
 		error("ERROR: host not found");
 	

@@ -1,27 +1,30 @@
 /**
- * A simple server in IPv4 internet domain using TCP to 
- * receive messages and reply to clients with the messages converted. 
- * The port number is passed as an argument
+ * A simple server in IPv4 internet domain using TCP to receive 
+ * messages from clients and reply with the messages converted. 
+ * The port number is passed as an argument.
  * @author Tong (Debby) Ding
  * @version 1.0
  * @see CPSC 5510 Spring 2020, Seattle University
  */
-// #define _BSD_SOURCE
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <iostream>
-#include <sys/types.h> 
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <strings.h>
-#include <cstring> // strlen
-#include <algorithm> // reverse
 
-#define BUF_SIZE 256
+// #include <stdio.h>
+// #include <stdlib.h>
+// #include <strings.h>
+// #include <sys/types.h> 
+// #include <sys/socket.h>
+// #include <netinet/in.h>
+
+#include <iostream>
+#include <unistd.h> // close()
+#include <arpa/inet.h> // inet_ntoa()
+#include <cstring> // strlen(), bzero(), ...
+#include <algorithm> // reverse()
+
+#define BUF_SIZE 131072
 #define EXIT_WORD "quit"
-#define BYE_WORD "Goodbye"
+#define PORT_MAX 12000
+#define PORT_MIN 11000
+#define LISTEN_BKLOG 5
 
 using namespace std;
 
@@ -33,6 +36,35 @@ void error(const char *msg) {
     perror(msg);
     exit(1);
 }
+/**
+ * Print a note message and exit the program
+ * @param msg customized note message
+ */ 
+void note(const char *msg) {
+    printf("Note: %s\n", msg);
+    exit(1);
+}
+
+/**
+ * Convert user input port number from string to int,
+ * or print the error and exit if validation fails
+ * @param str the string of port number to convert
+ * @return the int of port number
+ */
+int convertPort(const string& str) {
+	char *end;
+    long val = strtol(str.c_str(), &end, 10);
+
+	// no digits or incomplete conversion
+    if (end == str || *end != '\0')
+		note("port number must all be digits");
+		
+	// number out of range
+	if (val < PORT_MIN || val > PORT_MAX)
+		note("port number out of range");
+
+	return (int) val;
+}
 
 /**
  * Receive messages from clients and convert the messages to reply
@@ -41,32 +73,33 @@ void error(const char *msg) {
  */ 
 int main(int argc, char *argv[]) {
 
-	int sockfd, newsockfd, portno;
+	int sockfd, newsockfd, port, err;
 	socklen_t clilen;
 	char buffer[BUF_SIZE];
 	struct sockaddr_in serv_addr, cli_addr;
 	int n;
 	
-	if (argc != 2) {
-		cerr << "Usage: ./warmup_svr PORT" << endl;
-		return EXIT_FAILURE;
-	}
+	// check user input port number
+    if (argc != 2)
+		note("Usage example \"./warmup_cli HOSTPORT\"");
+
+	// get the port number with validation
+	port = convertPort(argv[1]);
 
 	// create a socket
-	// socket(int domain, int type, int protocol)
 	sockfd =  socket(AF_INET, SOCK_STREAM, 0);
 	if (sockfd < 0) 
-	error("ERROR opening socket");
+		error("ERROR opening socket");
 
 	// clear address structure
 	bzero((char *) &serv_addr, sizeof(serv_addr));
 
-	portno = atoi(argv[1]);
+
 
 	// setup the addr for server to bind the socket
 	serv_addr.sin_family = AF_INET;  
 	serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);  
-	serv_addr.sin_port = htons(portno);
+	serv_addr.sin_port = htons(port);
 
 	// bind the socket to the addr of server
 	if (bind(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0) 
@@ -77,8 +110,9 @@ int main(int argc, char *argv[]) {
 	while (true) {
 
 		// let socket listen to incoming connection requests
-		// FIX-ME: error checking on the listen() call
-		listen(sockfd, 5); // set max size for backlog queue to 5.
+		err = listen(sockfd, LISTEN_BKLOG);
+		if (err < 0) 
+			error("ERROR on listen");
 
 		clilen = sizeof(cli_addr); // size of client addr info structure
 
