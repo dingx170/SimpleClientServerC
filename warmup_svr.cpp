@@ -16,6 +16,12 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <strings.h>
+#include <cstring> // strlen
+#include <algorithm> // reverse
+
+#define BUF_SIZE 256
+#define EXIT_WORD "quit"
+#define BYE_WORD "Goodbye"
 
 using namespace std;
 
@@ -37,7 +43,7 @@ int main(int argc, char *argv[]) {
 
 	int sockfd, newsockfd, portno;
 	socklen_t clilen;
-	char buffer[256];
+	char buffer[BUF_SIZE];
 	struct sockaddr_in serv_addr, cli_addr;
 	int n;
 	
@@ -66,36 +72,51 @@ int main(int argc, char *argv[]) {
 	if (bind(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0) 
 			error("ERROR on binding");
 
-	//// The listen() function places all incoming connection into a backlog queue until accept() call accepts the connection.
-	// let socket listen to incoming connection requests
-	// FIX-ME: error checking on the listen() call
-	listen(sockfd, 5); // set max size for backlog queue to 5.
 
-	clilen = sizeof(cli_addr); // size of client addr info structure
-
-	// accepts a connection request and open a new socket to free the original socket
-	newsockfd = accept(sockfd, (struct sockaddr *) &cli_addr, &clilen);
-	if (newsockfd < 0) 
-		error("ERROR on accept");
-
-	printf("server: got connection from %s port %d\n",
-		inet_ntoa(cli_addr.sin_addr), ntohs(cli_addr.sin_port));
-
+	// start the loop to get connected from clients
 	while (true) {
-		// This send() function sends the 13 bytes of the string to the new socket
-		send(newsockfd, "Hello, world!\n", 13, 0);
 
-		bzero(buffer,256);
+		// let socket listen to incoming connection requests
+		// FIX-ME: error checking on the listen() call
+		listen(sockfd, 5); // set max size for backlog queue to 5.
 
-		n = read(newsockfd,buffer,255);
-		if (n < 0) {
-			error("ERROR reading from socket");
-		} else {
-			printf("Here is the message: %s\n",buffer);
+		clilen = sizeof(cli_addr); // size of client addr info structure
+
+		// accepts a connection request and open a new socket to free the original socket
+		newsockfd = accept(sockfd, (struct sockaddr *) &cli_addr, &clilen);
+		if (newsockfd < 0) 
+			error("ERROR on accept");
+
+		printf("Accepted connection from %s port %d\n\n",
+			inet_ntoa(cli_addr.sin_addr), ntohs(cli_addr.sin_port));	
+
+		while (true) {
+			bzero(buffer, BUF_SIZE);
+
+			n = recv(newsockfd,buffer, BUF_SIZE, 0);
+			if (n < 0)
+				error("ERROR reading from socket");
+
+			// prepare to disconnect if user send "quit"
+			if (strncmp(buffer, EXIT_WORD, strlen(EXIT_WORD)) == 0) {
+				printf("Connection terminated by %s port %d\n\n",
+					inet_ntoa(cli_addr.sin_addr), ntohs(cli_addr.sin_port));
+
+				send(newsockfd, buffer, strlen(buffer), 0);
+				break;
+			}
+
+			printf("Received message: %s\n", buffer);
+
+			// reverse received message
+			reverse(buffer, buffer + strlen(buffer));
+
+			// send the revised message
+			send(newsockfd, buffer, strlen(buffer), 0);
+
 		}
-	}
-	
-	close(newsockfd);
+		close(newsockfd);
+	}	
 	close(sockfd); 
 	
     return EXIT_SUCCESS;

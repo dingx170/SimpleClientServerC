@@ -18,7 +18,10 @@
 #include <unistd.h> //
 #include <arpa/inet.h>
 #include <strings.h> // bzero
-#include <cstring>
+#include <cstring> // strlen
+
+#define BUF_SIZE 256
+#define EXIT_WORD "quit"
 
 using namespace std;
 
@@ -60,12 +63,12 @@ int convertPort(const string& str) {
  */ 
 int main(int argc, char *argv[]) {
 
-	int sock, port, n, cliPort;
+	int sock, port, err, cliPort;
     struct sockaddr_in serv_addr;
 	struct sockaddr_in clitAddr;
     struct hostent *server;
 
-    char buffer[256];
+    char buffer[BUF_SIZE];
 
 	// check user input hostname & port number
     if (argc != 4)
@@ -105,30 +108,35 @@ int main(int argc, char *argv[]) {
 	if (connect(sock, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0) 
 		error("ERROR connecting");	
 
-	printf("\nWelcome! Enter a message to send or \"quit\" to exit.\n");
+	printf("\nWelcome! Enter a message to send or \"quit\" to exit.");
 	
 	// user-input loop
 	while (true) {
 
-		printf("Send: ");
+		printf("\n\nSend: ");
 
-		bzero(buffer,256);
-		fgets(buffer,255,stdin);
+		bzero(buffer,BUF_SIZE);
+		fgets(buffer,BUF_SIZE,stdin);
 
-		// printf("Input: %s", buffer);
-
-		n = write(sock, buffer, strlen(buffer));
-		if (n < 0) 
+		// send message and check for error
+		err = send(sock, buffer, strlen(buffer), 0);
+		if (err < 0) 
 			error("ERROR writing to socket");
 
+		// clear buffer
+		bzero(buffer,BUF_SIZE);
 
-		bzero(buffer,256);
-		n = read(sock, buffer, 255);
-		if (n < 0) 
+		// receive message
+		err = recv(sock, buffer, BUF_SIZE, 0);
+		if (err < 0) 
 			error("ERROR reading from socket");
-			
-		printf("%s\n", buffer);
-		// send() and recv() 
+
+		// exit if user enter "quit"
+		if (strncmp(buffer, EXIT_WORD, strlen(EXIT_WORD)) == 0) 
+			break;
+		
+		printf(buffer);
+		
 	}
 
     close(sock);
